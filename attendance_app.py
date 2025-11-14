@@ -1,8 +1,7 @@
 import streamlit as st
 from datetime import date
+import pandas as pd
 
-if "students" not in st.session_state or not isinstance(st.session_state.students, dict):
-    st.session_state.students = {}
 
 # Queue (FIFO)
 class Queue:
@@ -13,18 +12,18 @@ class Queue:
         self.q.append(item)
 
     def dequeue(self):
-        if self.is_empty():
-            return None
-        return self.q.pop(0)
+        if not self.is_empty():
+            return self.q.pop(0)
+        return None
 
     def is_empty(self):
-        return len(self.q)
+        return len(self.q) == 0
 
     def get_all(self):
-        return self.q
+        return list(self.q)
 
 
-# Stack (LIFO for Undo)
+# Stack (LIFO) 
 class Stack:
     def __init__(self):
         self.s = []
@@ -33,212 +32,200 @@ class Stack:
         self.s.append(item)
 
     def pop(self):
-        if self.is_empty():
-            return None
-        return self.s.pop()
+        if self.s:
+            return self.s.pop()
+        return None
 
-    def is_empty(self):
-        return len(self.s) == 0
-
-
-# Linked List (Log History)
-class Node:
-    def __init__(self, data):
-        self.data = data
-        self.next = None
-
-
-class LinkedList:
-    def __init__(self):
-        self.head = None
-
-    def insert(self, data):
-        node = Node(data)
-        if self.head is None:
-            self.head = node
-        else:
-            cur = self.head
-            while cur.next:
-                cur = cur.next
-            cur.next = node
-
-    def get_all(self):
-        logs = []
-        cur = self.head
-        while cur:
-            logs.append(cur.data)
-            cur = cur.next
-        return logs
-
-
-# STREAMLIT SESSION INITIALIZATION
 
 if "students" not in st.session_state:
-    st.session_state.students = {}  # { id: name }
+    st.session_state.students = {}       # {roll: name}
 
 if "attendance" not in st.session_state:
-    st.session_state.attendance = {}  # { date : [ids] }
+    st.session_state.attendance = {}     # {date: {roll: Present/Absent}}
 
-if "log_queue" not in st.session_state:
-    st.session_state.log_queue = Queue()
+if "queue" not in st.session_state:
+    st.session_state.queue = Queue()
 
-if "undo_stack" not in st.session_state:
-    st.session_state.undo_stack = Stack()
-
-if "log_history" not in st.session_state:
-    st.session_state.log_history = LinkedList()
+if "stack" not in st.session_state:
+    st.session_state.stack = Stack()
 
 
-# STREAMLIT UI 
 
-st.title("Attendance Tracking System")
+def add_student(roll, name):
+    if roll in st.session_state.students:
+        st.warning("Roll already exists.")
+        return
+    st.session_state.students[roll] = name
+    st.success("Student added")
 
-tab1, tab2, tab3, tab4 = st.tabs([
-    "Add Student",
-    "Mark Attendance",
-    "Queue & Undo",
-    "Reports"
-])
+def delete_student(roll):
+    if roll in st.session_state.students:
+        del st.session_state.students[roll]
+        for d in st.session_state.attendance:
+            st.session_state.attendance[d].pop(roll, None)
+        st.success("Student deleted")
 
-# TAB 1 — Add Student
+def mark_attendance(roll, d, status):
+    if d not in st.session_state.attendance:
+        st.session_state.attendance[d] = {}
+
+    prev = st.session_state.attendance[d].get(roll)
+    st.session_state.stack.push((roll, d, prev))  # track last action
+
+    st.session_state.attendance[d][roll] = status
+    st.success("Attendance marked")
+
+def delete_attendance_date(d):
+    if d in st.session_state.attendance:
+        del st.session_state.attendance[d]
+        st.success("Attendance deleted")
+
+def queue_add(roll, d, status):
+    st.session_state.queue.enqueue({"roll": roll, "date": d, "status": status})
+    st.success("Added to queue")
+
+def queue_process_next():
+    item = st.session_state.queue.dequeue()
+    if not item:
+        st.warning("Queue empty")
+        return
+
+    roll = item["roll"]
+    d = item["date"]
+    status = item["status"]
+
+    if d not in st.session_state.attendance:
+        st.session_state.attendance[d] = {}
+
+    prev = st.session_state.attendance[d].get(roll)
+    st.session_state.stack.push((roll, d, prev))
+
+    st.session_state.attendance[d][roll] = status
+    st.success(f"Processed: {roll} marked {status}")
+
+
+def student_report(roll):
+    rows = []
+    for d, data in st.session_state.attendance.items():
+        status = data.get(roll, "Absent")
+        rows.append({"Date": d, "Status": status})
+    return rows
+
+def daily_present_counts():
+    rows = []
+    for d, data in st.session_state.attendance.items():
+        present_count = sum(1 for s in data.values() if s == "Present")
+        rows.append({"Date": d, "Present": present_count})
+    return rows
+
+
+
+# STREAMLIT UI
+
+st.set_page_config(page_title="Attendance System", layout="wide")
+st.title("Attendance Tracking System (Simple DSA Version)")
+
+tab1, tab2, tab3 = st.tabs(["Students", "Attendance", "Reports"])
+
+
+
+# TAB 1: STUDENTS
 
 with tab1:
-    st.header("Add Student")
+    st.header("Add / Delete Students")
 
     col1, col2 = st.columns(2)
     with col1:
-        new_id = st.text_input("Student ID")
+        roll = st.text_input("Roll Number")
     with col2:
-        new_name = st.text_input("Student Name")
+        name = st.text_input("Name")
 
     if st.button("Add Student"):
-        if new_id in st.session_state.students:
-            st.warning("Student ID already exists")
-        else:
-            st.session_state.students[new_id] = new_name
-            st.success("Student added successfully")
+        add_student(roll.strip(), name.strip())
+
+    st.subheader("Current Students")
 
     if st.session_state.students:
-        st.subheader("Student List")
-        st.table(
-            [{"ID": sid, "Name": name}
-             for sid, name in st.session_state.students.items()]
+        df = pd.DataFrame(
+            [{"Roll": r, "Name": n} for r, n in st.session_state.students.items()]
         )
+        st.dataframe(df)
 
-# TAB 2 — Mark Attendance
+        del_roll = st.selectbox("Select Roll to Delete", [""] + list(st.session_state.students.keys()))
+        if st.button("Delete Student"):
+            if del_roll:
+                delete_student(del_roll)
+    else:
+        st.info("No students added yet.")
+
+
+
+# TAB 2: ATTENDANCE
 
 with tab2:
-    st.header("Mark Attendance Manually")
+    st.header("Mark Attendance")
 
-    sid = st.text_input("Enter Student ID")
-    d = st.date_input("Select Date", value=date.today()).isoformat()
+    colA, colB, colC = st.columns(3)
+    with colA:
+        sel_date = st.date_input("Select Date", value=date.today()).isoformat()
+    with colB:
+        sel_roll = st.selectbox("Select Student Roll", [""] + list(st.session_state.students.keys()))
+    with colC:
+        sel_status = st.selectbox("Status", ["Present", "Absent"])
 
-    if st.button("Mark Present"):
-        if d not in st.session_state.attendance:
-            st.session_state.attendance[d] = []
-
-        if sid not in st.session_state.attendance[d]:
-            st.session_state.attendance[d].append(sid)
-
-            # Save for undo
-            st.session_state.undo_stack.push(("unmark", sid, d))
-
-            # Add to log history
-            st.session_state.log_history.insert(
-                {"sid": sid, "date": d, "type": "manual"}
-            )
-
-            st.success("Attendance marked")
+    if st.button("Mark Directly"):
+        if not sel_roll:
+            st.warning("Select a student")
         else:
-            st.warning("Already marked present")
+            mark_attendance(sel_roll, sel_date, sel_status)
 
+    st.subheader("OR Add request to Queue")
 
-# TAB 3 — Queue + Undo
-
-with tab3:
-
-    st.header("Add to Attendance Queue")
-
-    q_sid = st.text_input("Queue - Student ID")
-
+    q_roll = st.text_input("Queue Roll")
+    q_status = st.selectbox("Queue Status", ["Present", "Absent"])
     if st.button("Add to Queue"):
-        entry = {"sid": q_sid, "date": date.today().isoformat()}
-        st.session_state.log_queue.enqueue(entry)
-        st.session_state.log_history.insert({"sid": q_sid, "date": entry["date"], "type": "queued"})
-        st.success("Added to Queue")
+        queue_add(q_roll.strip(), date.today().isoformat(), q_status)
 
     st.subheader("Pending Queue")
-    st.table(st.session_state.log_queue.get_all())
+    q_items = st.session_state.queue.get_all()
+    st.table(q_items)
 
-    st.header("Process Queue")
-    if st.button("Process Next"):
-        log = st.session_state.log_queue.dequeue()
-        if log:
-            sid = log["sid"]
-            dd = log["date"]
+    if st.button("Process Next Queue Item"):
+        queue_process_next()
 
-            if dd not in st.session_state.attendance:
-                st.session_state.attendance[dd] = []
+    st.subheader(f"Attendance on {sel_date}")
+    rows = []
+    if sel_date in st.session_state.attendance:
+        for r, s in st.session_state.attendance[sel_date].items():
+            rows.append({"Roll": r, "Name": st.session_state.students.get(r, ""), "Status": s})
+        st.table(rows)
 
-            if sid not in st.session_state.attendance[dd]:
-                st.session_state.attendance[dd].append(sid)
-
-                st.session_state.undo_stack.push(("unmark", sid, dd))
-                st.session_state.log_history.insert({"sid": sid, "date": dd, "type": "queue-processed"})
-
-                st.success(f"Processed {sid}")
-        else:
-            st.warning("Queue is empty")
-
-    st.header("Undo Last Action")
-
-    if st.button("Undo"):
-        last = st.session_state.undo_stack.pop()
-        if last is None:
-            st.warning("Nothing to undo")
-        else:
-            action, sid, dd = last
-            if action == "unmark":
-                if dd in st.session_state.attendance and sid in st.session_state.attendance[dd]:
-                    st.session_state.attendance[dd].remove(sid)
-                    st.success("Undo successful")
-
-    st.header("Log History (Linked List)")
-    st.table(st.session_state.log_history.get_all())
+        if st.button("Delete Attendance for This Date"):
+            delete_attendance_date(sel_date)
+    else:
+        st.info("No attendance for this date.")
 
 
-# TAB 4 — Reports
+# TAB 3: REPORTS
 
-with tab4:
-    st.header("Attendance Reports")
+with tab3:
+    st.header("Reports")
 
-    
-    st.subheader("Student Attendance Report")
+    st.subheader("Student Report")
+    rep_roll = st.selectbox("Select Student", [""] + list(st.session_state.students.keys()))
 
-    student = st.text_input("Enter Student ID for Report")
-
-    if st.button("Show Student Report"):
-        result = []
-        for d, ids in st.session_state.attendance.items():
-            if student in ids:
-                result.append({"Date": d, "Status": "Present"})
-
-        if result:
-            st.table(result)
-        else:
-            st.warning("No attendance found for this student")
-
-
-    st.subheader("Daily Summary")
-
-    dd = st.date_input("Choose Date", value=date.today()).isoformat()
-
-    if st.button("Show Daily Summary"):
-        if dd in st.session_state.attendance:
-            present_ids = st.session_state.attendance[dd]
-            data = [{"Student ID": i, "Name": st.session_state.students.get(i, "Unknown")}
-                    for i in present_ids]
+    if st.button("Show Report"):
+        data = student_report(rep_roll)
+        if data:
             st.table(data)
         else:
-            st.warning("No records for this date")
+            st.info("No attendance records.")
+
+    st.subheader("Date-wise Present Count")
+    counts = daily_present_counts()
+    if counts:
+        df_counts = pd.DataFrame(counts).set_index("Date")
+        st.bar_chart(df_counts)
+    else:
+        st.info("No attendance yet.")
 
