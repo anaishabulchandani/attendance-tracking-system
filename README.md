@@ -26,28 +26,21 @@ Date-wise present count chart
 Clean and simple UI using Streamlit tabs
 
 Data Structures Used:
-
-Dictionary
-
-Queue (FIFO)
-
-Stack (LIFO)
-
+Dictionary,
+Queue (FIFO),
+Stack (LIFO),
 Lists
 
 Technologies Used:
 
-Python 3.x
-
-Streamlit (UI)
-
-Pandas (tables + charts)
-
-JSON (data persistence)
-Matplotlib (diagram generation)
+Python 3.x,
+Streamlit (UI),
+Pandas (tables + charts),
+JSON (data persistence),
+Matplotlib (diagram generation),
 Pathlib (file handling)
 
 Made By:
-Anaisha Bulchandani
-Soumya Tiwari
+Anaisha Bulchandani,
+Soumya Tiwari,
 Kapil Narkhade
