@@ -135,7 +135,7 @@ def daily_present_counts():
 
 # STREAMLIT UI
 st.set_page_config(page_title="Attendance System", layout="wide")
-st.title("Attendance Tracking System (Simple DSA Version)")
+st.title("Attendance Tracking System ")
 
 tab1, tab2, tab3 = st.tabs(["Students", "Attendance", "Reports"])
 
@@ -261,3 +261,4 @@ with tab3:
         st.bar_chart(df_counts)
     else:
         st.info("No attendance yet.")
+
