@@ -1,7 +1,8 @@
 import streamlit as st
 from datetime import date
 import pandas as pd
-
+import json
+from pathlib import Path
 
 # Queue (FIFO)
 class Queue:
@@ -22,7 +23,6 @@ class Queue:
     def get_all(self):
         return list(self.q)
 
-
 # Stack (LIFO) 
 class Stack:
     def __init__(self):
@@ -36,12 +36,28 @@ class Stack:
             return self.s.pop()
         return None
 
+# ---- STUDENT SAVE / LOAD ----
+DATA_DIR = Path("data")
+STUDENTS_FILE = DATA_DIR / "students.json"
 
+def load_students():
+    if STUDENTS_FILE.exists():
+        try:
+            return json.loads(STUDENTS_FILE.read_text(encoding="utf-8"))
+        except:
+            return {}
+    return {}
+
+def save_students():
+    DATA_DIR.mkdir(exist_ok=True)
+    STUDENTS_FILE.write_text(json.dumps(st.session_state.students, indent=2), encoding="utf-8")
+
+# ---- SESSION ----
 if "students" not in st.session_state:
-    st.session_state.students = {}       # {roll: name}
+    st.session_state.students = load_students()
 
 if "attendance" not in st.session_state:
-    st.session_state.attendance = {}     # {date: {roll: Present/Absent}}
+    st.session_state.attendance = {}
 
 if "queue" not in st.session_state:
     st.session_state.queue = Queue()
@@ -49,13 +65,13 @@ if "queue" not in st.session_state:
 if "stack" not in st.session_state:
     st.session_state.stack = Stack()
 
-
-
+# ---- FUNCTIONS ----
 def add_student(roll, name):
     if roll in st.session_state.students:
         st.warning("Roll already exists.")
         return
     st.session_state.students[roll] = name
+    save_students()
     st.success("Student added")
 
 def delete_student(roll):
@@ -63,6 +79,7 @@ def delete_student(roll):
         del st.session_state.students[roll]
         for d in st.session_state.attendance:
             st.session_state.attendance[d].pop(roll, None)
+        save_students()
         st.success("Student deleted")
 
 def mark_attendance(roll, d, status):
@@ -70,8 +87,7 @@ def mark_attendance(roll, d, status):
         st.session_state.attendance[d] = {}
 
     prev = st.session_state.attendance[d].get(roll)
-    st.session_state.stack.push((roll, d, prev))  # track last action
-
+    st.session_state.stack.push((roll, d, prev))
     st.session_state.attendance[d][roll] = status
     st.success("Attendance marked")
 
@@ -103,7 +119,6 @@ def queue_process_next():
     st.session_state.attendance[d][roll] = status
     st.success(f"Processed: {roll} marked {status}")
 
-
 def student_report(roll):
     rows = []
     for d, data in st.session_state.attendance.items():
@@ -118,19 +133,13 @@ def daily_present_counts():
         rows.append({"Date": d, "Present": present_count})
     return rows
 
-
-
 # STREAMLIT UI
-
 st.set_page_config(page_title="Attendance System", layout="wide")
 st.title("Attendance Tracking System (Simple DSA Version)")
 
 tab1, tab2, tab3 = st.tabs(["Students", "Attendance", "Reports"])
 
-
-
 # TAB 1: STUDENTS
-
 with tab1:
     st.header("Add / Delete Students")
 
@@ -158,12 +167,10 @@ with tab1:
     else:
         st.info("No students added yet.")
 
-
-
 # TAB 2: ATTENDANCE
-
 with tab2:
     st.header("Mark Attendance")
+
     student_options = [f"{r} – {n}" for r, n in st.session_state.students.items()]
 
     colA, colB, colC = st.columns(3)
@@ -233,11 +240,7 @@ with tab2:
     else:
         st.info("No attendance for this date.")
 
-
-
-
 # TAB 3: REPORTS
-
 with tab3:
     st.header("Reports")
 
@@ -258,6 +261,3 @@ with tab3:
         st.bar_chart(df_counts)
     else:
         st.info("No attendance yet.")
-
-
-
