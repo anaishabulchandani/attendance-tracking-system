@@ -164,12 +164,20 @@ with tab1:
 
 with tab2:
     st.header("Mark Attendance")
+    student_options = [f"{r} – {n}" for r, n in st.session_state.students.items()]
 
     colA, colB, colC = st.columns(3)
     with colA:
         sel_date = st.date_input("Select Date", value=date.today()).isoformat()
+
     with colB:
-        sel_roll = st.selectbox("Select Student Roll", [""] + list(st.session_state.students.keys()))
+        sel_student_option = st.selectbox(
+            "Select Student",
+            [""] + student_options,
+            key="sel_student"
+        )
+        sel_roll = sel_student_option.split(" – ")[0] if sel_student_option else ""
+
     with colC:
         sel_status = st.selectbox("Status", ["Present", "Absent"])
 
@@ -179,12 +187,22 @@ with tab2:
         else:
             mark_attendance(sel_roll, sel_date, sel_status)
 
-    st.subheader("OR Add request to Queue")
+    st.markdown("### OR Add request to Queue")
 
-    q_roll = st.text_input("Queue Roll")
+    q_student_option = st.selectbox(
+        "Queue: Select Student",
+        [""] + student_options,
+        key="queue_student"
+    )
+    q_roll = q_student_option.split(" – ")[0] if q_student_option else ""
+
     q_status = st.selectbox("Queue Status", ["Present", "Absent"])
+
     if st.button("Add to Queue"):
-        queue_add(q_roll.strip(), date.today().isoformat(), q_status)
+        if not q_roll:
+            st.warning("Select a student")
+        else:
+            queue_add(q_roll, date.today().isoformat(), q_status)
 
     st.subheader("Pending Queue")
     q_items = st.session_state.queue.get_all()
@@ -194,27 +212,27 @@ with tab2:
         queue_process_next()
 
     st.subheader(f"Attendance on {sel_date}")
+    rows = []
+    day_data = st.session_state.attendance.get(sel_date, {})
 
-rows = []
-day_data = st.session_state.attendance.get(sel_date, {})
+    if not isinstance(day_data, dict):
+        day_data = {}
 
-# Ensure it's always a dictionary
-if not isinstance(day_data, dict):
-    day_data = {}
+    for r, s in day_data.items():
+        rows.append({
+            "Roll": r,
+            "Name": st.session_state.students.get(r, ""),
+            "Status": s
+        })
 
-for r, s in day_data.items():
-    rows.append({
-        "Roll": r,
-        "Name": st.session_state.students.get(r, ""),
-        "Status": s
-    })
+    if rows:
+        st.table(rows)
 
-if rows:
-    st.table(rows)
-    if st.button("Delete Attendance for This Date"):
-        delete_attendance_date(sel_date)
-else:
-    st.info("No attendance for this date.")
+        if st.button("Delete Attendance for This Date"):
+            delete_attendance_date(sel_date)
+    else:
+        st.info("No attendance for this date.")
+
 
 
 
@@ -240,5 +258,6 @@ with tab3:
         st.bar_chart(df_counts)
     else:
         st.info("No attendance yet.")
+
 
 
