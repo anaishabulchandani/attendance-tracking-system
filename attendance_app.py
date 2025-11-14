@@ -194,16 +194,28 @@ with tab2:
         queue_process_next()
 
     st.subheader(f"Attendance on {sel_date}")
-    rows = []
-    if sel_date in st.session_state.attendance:
-        for r, s in st.session_state.attendance[sel_date].items():
-            rows.append({"Roll": r, "Name": st.session_state.students.get(r, ""), "Status": s})
-        st.table(rows)
 
-        if st.button("Delete Attendance for This Date"):
-            delete_attendance_date(sel_date)
-    else:
-        st.info("No attendance for this date.")
+rows = []
+day_data = st.session_state.attendance.get(sel_date, {})
+
+# Ensure it's always a dictionary
+if not isinstance(day_data, dict):
+    day_data = {}
+
+for r, s in day_data.items():
+    rows.append({
+        "Roll": r,
+        "Name": st.session_state.students.get(r, ""),
+        "Status": s
+    })
+
+if rows:
+    st.table(rows)
+    if st.button("Delete Attendance for This Date"):
+        delete_attendance_date(sel_date)
+else:
+    st.info("No attendance for this date.")
+
 
 
 # TAB 3: REPORTS
@@ -228,4 +240,5 @@ with tab3:
         st.bar_chart(df_counts)
     else:
         st.info("No attendance yet.")
+
 
