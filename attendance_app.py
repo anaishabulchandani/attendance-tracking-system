@@ -1,6 +1,9 @@
 import streamlit as st
 from datetime import date
 
+if "students" not in st.session_state or not isinstance(st.session_state.students, dict):
+    st.session_state.students = {}
+
 # Queue (FIFO)
 class Queue:
     def __init__(self):
@@ -238,3 +241,4 @@ with tab4:
             st.table(data)
         else:
             st.warning("No records for this date")
+
